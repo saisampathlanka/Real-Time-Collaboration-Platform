@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+build/
+vite-resolved.config.*
+
+# Local env
+.env
+.env.local
+.env.*
+
+# Logs
+logs/
+.log
+*.log
+
+# IDE/editor folders
+.idea/
+.vscode/
+.DS_Store

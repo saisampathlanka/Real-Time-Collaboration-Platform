@@ -1,0 +1,21 @@
+# Node modules and builds
+node_modules/
+dist/
+build/
+
+# Local env files
+.env
+.env.local
+.env.*
+
+# Logs
+logs/
+*.log
+
+# DB dumps/seeding files
+notes.json
+*.sql
+
+# IDE/editor dirs
+.idea/
+.vscode/
