@@ -1,52 +1,58 @@
-const fs = require('fs')
-const path = require('path')
-const dataFile = path.resolve(__dirname, '../../notes.json')
+const mysql = require("mysql2/promise");
 
-class NoteRepository {
-  constructor() {
-    this.backend = process.env.DB_TYPE === 'mysql' ? null : null
-    this._ensureStore()
-  }
-  _ensureStore() {
-    if (!fs.existsSync(dataFile)) {
-      fs.writeFileSync(dataFile, JSON.stringify([]))
-    }
-  }
-  _readAll() {
-    const raw = fs.readFileSync(dataFile, 'utf8')
-    try { return JSON.parse(raw) } catch { return [] }
-  }
-  _writeAll(notes) {
-    fs.writeFileSync(dataFile, JSON.stringify(notes, null, 2))
-  }
-  async create(note) {
-    const notes = this._readAll()
-    notes.push(note)
-    this._writeAll(notes)
-    return note
-  }
-  async findAll() {
-    return this._readAll()
-  }
-  async findById(id) {
-    return this._readAll().find(n => n.id === id) || null
-  }
-  async update(id, updated) {
-    const notes = this._readAll()
-    const idx = notes.findIndex(n => n.id === id)
-    if (idx === -1) return null
-    notes[idx] = { ...notes[idx], ...updated, updated_at: new Date().toISOString() }
-    this._writeAll(notes)
-    return notes[idx]
-  }
-  async delete(id) {
-    const notes = this._readAll()
-    const idx = notes.findIndex(n => n.id === id)
-    if (idx === -1) return false
-    notes.splice(idx, 1)
-    this._writeAll(notes)
-    return true
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "notesdb",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+});
+
+async function ensureTable() {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query(`CREATE TABLE IF NOT EXISTS notes (
+      id VARCHAR(36) PRIMARY KEY,
+      title TEXT,
+      content TEXT,
+      created_at DATETIME,
+      updated_at DATETIME
+    )`);
+  } finally {
+    conn.release();
   }
 }
 
-module.exports = new NoteRepository()
+module.exports = {
+  async create(note) {
+    await ensureTable();
+    const [r] = await pool.query("INSERT INTO notes SET ?", note);
+    return note;
+  },
+  async findAll() {
+    await ensureTable();
+    const [rows] = await pool.query("SELECT * FROM notes");
+    return rows;
+  },
+  async findById(id) {
+    await ensureTable();
+    const [rows] = await pool.query("SELECT * FROM notes WHERE id = ?", [id]);
+    return rows[0] || null;
+  },
+  async update(id, updated) {
+    await ensureTable();
+    const set = Object.assign({}, updated, {
+      updated_at: new Date().toISOString(),
+    });
+    await pool.query("UPDATE notes SET ? WHERE id = ?", [set, id]);
+    const [rows] = await pool.query("SELECT * FROM notes WHERE id = ?", [id]);
+    return rows[0] || null;
+  },
+  async delete(id) {
+    await ensureTable();
+    const [r] = await pool.query("DELETE FROM notes WHERE id = ?", [id]);
+    return r.affectedRows > 0;
+  },
+};
